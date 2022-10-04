@@ -17,6 +17,8 @@ Install this plugin in the same environment as Datasette.
 
 Any tables listed in the `_public_tables` table will be visible to the public, even if the rest of the Datasette instance does not allow anonymous access.
 
+Installing this plugin also causes `allow-sql` permission checks to be denied to all logged-out users. This is to protect against people using the `?_where=` parameter on the table page to join against other private tables.
+
 ## Configuration
 
 This plugin creates a new table in one of your databases called `_public_tables`.

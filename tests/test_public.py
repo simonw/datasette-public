@@ -63,6 +63,25 @@ async def test_public_table(tmpdir, public_instance, public_table, should_allow)
         assert response.status_code == 403
 
 
+@pytest.mark.asyncio
+async def test_where_is_denied(tmpdir):
+    db_path = str(tmpdir / "data.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("create table t1 (id int)")
+    with conn:
+        conn.execute("create table _public_tables (table_name text primary key)")
+        conn.execute("insert into _public_tables (table_name) values (?)", ["t1"])
+    ds = Datasette([db_path], metadata={"allow": False})
+    await ds.invoke_startup()
+    # This should be allowed
+    assert (await ds.client.get("/data/t1")).status_code == 200
+    # This should not
+    assert (await ds.client.get("/data")).status_code == 403
+    # Neither should this
+    response = await ds.client.get("/data/t1?_where=1==1")
+    assert ">1 extra where clause<" not in response.text
+
+
 def _get_tables(path):
     return [
         r[0]

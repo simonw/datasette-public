@@ -17,8 +17,10 @@ def startup(datasette):
 
 
 @hookimpl
-def permission_allowed(datasette, action, resource):
+def permission_allowed(datasette, action, actor, resource):
     async def inner():
+        if action == "execute-sql" and not actor:
+            return False
         if action != "view-table":
             return None
         # Say 'yes' if this table is public
