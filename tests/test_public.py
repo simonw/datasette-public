@@ -33,6 +33,36 @@ async def test_error_if_database_is_immutable(tmpdir):
         await ds.invoke_startup()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "public_instance,public_table,should_allow",
+    (
+        (True, False, True),
+        (False, False, False),
+        (False, True, True),
+        (True, True, True),
+    ),
+)
+async def test_public_table(tmpdir, public_instance, public_table, should_allow):
+    db_path = str(tmpdir / "data.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("create table t1 (id int)")
+    if public_table:
+        with conn:
+            conn.execute("create table _public_tables (table_name text primary key)")
+            conn.execute("insert into _public_tables (table_name) values (?)", ["t1"])
+    metadata = {}
+    if not public_instance:
+        metadata["allow"] = False
+    ds = Datasette([db_path], metadata=metadata)
+    await ds.invoke_startup()
+    response = await ds.client.get("/data/t1")
+    if should_allow:
+        assert response.status_code == 200
+    else:
+        assert response.status_code == 403
+
+
 def _get_tables(path):
     return [
         r[0]
