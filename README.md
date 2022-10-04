@@ -15,7 +15,25 @@ Install this plugin in the same environment as Datasette.
 
 ## Usage
 
-Usage instructions go here.
+...
+
+## Configuration
+
+This plugin creates a new table in one of your databases called `_public_tables`.
+
+This table defaults to being created in the first database passed to Datasette.
+
+To create it in a different named database, use this plugin configuration:
+
+```json
+{
+  "plugins": {
+    "datasette-public": {
+      "database": "database_to_create_table_in"
+    }
+  }
+}
+```
 
 ## Development
 
