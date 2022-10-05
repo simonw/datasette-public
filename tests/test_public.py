@@ -82,6 +82,71 @@ async def test_where_is_denied(tmpdir):
     assert ">1 extra where clause<" not in response.text
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("user_is_root", (True, False))
+async def test_ui_for_editing_table_privacy(tmpdir, user_is_root):
+    db_path = str(tmpdir / "data.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("create table t1 (id int)")
+    ds = Datasette([db_path], metadata={"allow": {"id": "*"}})
+    await ds.invoke_startup()
+    # Regular user can see table but not edit privacy
+    cookies = {
+        "ds_actor": ds.sign({"a": {"id": "root" if user_is_root else "user"}}, "actor")
+    }
+    menu_fragment = '<li><a href="/-/public-table/data/t1">Make table public</a></li>'
+    response = await ds.client.get("/data/t1", cookies=cookies)
+    if user_is_root:
+        assert menu_fragment in response.text
+    else:
+        assert menu_fragment not in response.text
+
+    # Check permissions on /-/public-table/data/t1 page
+    response2 = await ds.client.get("/-/public-table/data/t1", cookies=cookies)
+    if user_is_root:
+        assert response2.status_code == 200
+    else:
+        assert response2.status_code == 403
+    # non-root user test ends here
+    if not user_is_root:
+        return
+    # Test root user can toggle table privacy
+    html = response2.text
+    assert "Table is currently <strong>private</strong>" in html
+    assert '<input type="hidden" name="action" value="make-public">' in html
+    assert '<input type="submit" value="Make public">' in html
+    assert _get_public_tables(db_path) == []
+    csrftoken = response2.cookies["ds_csrftoken"]
+    cookies["ds_csrftoken"] = csrftoken
+    response3 = await ds.client.post(
+        "/-/public-table/data/t1",
+        cookies=cookies,
+        data={"action": "make-public", "csrftoken": csrftoken},
+    )
+    assert response3.status_code == 302
+    assert response3.headers["location"] == "/data/t1"
+    assert _get_public_tables(db_path) == ["t1"]
+    # And toggle it private again
+    response4 = await ds.client.get("/-/public-table/data/t1", cookies=cookies)
+    html2 = response4.text
+    assert "Table is currently <strong>public</strong>" in html2
+    assert '<input type="hidden" name="action" value="make-private">' in html2
+    assert '<input type="submit" value="Make private">' in html2
+    response5 = await ds.client.post(
+        "/-/public-table/data/t1",
+        cookies=cookies,
+        data={"action": "make-private", "csrftoken": csrftoken},
+    )
+    assert response5.status_code == 302
+    assert response5.headers["location"] == "/data/t1"
+    assert _get_public_tables(db_path) == []
+
+
+def _get_public_tables(db_path):
+    conn = sqlite3.connect(db_path)
+    return [row[0] for row in conn.execute("select table_name from _public_tables")]
+
+
 def _get_tables(path):
     return [
         r[0]

@@ -1,4 +1,5 @@
-from datasette import hookimpl
+from datasette import hookimpl, Forbidden, Response, NotFound
+from urllib.parse import quote_plus, unquote_plus
 
 CREATE_TABLE_SQL = """
 create table _public_tables (table_name text primary key)
@@ -19,21 +20,110 @@ def startup(datasette):
 @hookimpl
 def permission_allowed(datasette, action, actor, resource):
     async def inner():
+        # Root actor can always edit public status
+        if actor and actor.get("id") == "root" and action == "public-tables":
+            return True
         if action == "execute-sql" and not actor:
             return False
         if action != "view-table":
             return None
         # Say 'yes' if this table is public
         database_name, table_name = resource
-        # TODO: include database_name in check
         db = db_from_config(datasette)
-        rows = await db.execute(
-            "select 1 from _public_tables where table_name = ?", [table_name]
-        )
-        if len(rows):
+        if await table_is_public(db, table_name):
             return True
 
     return inner
+
+
+async def table_is_public(db, table_name):
+    # TODO: include database_name in check
+    rows = await db.execute(
+        "select 1 from _public_tables where table_name = ?", [table_name]
+    )
+    if len(rows):
+        return True
+
+
+@hookimpl
+def table_actions(datasette, actor, database, table):
+    async def inner():
+        if not await datasette.permission_allowed(
+            actor, "public-tables", resource=database, default=False
+        ):
+            return []
+        if database != "_internal":
+            is_private = not await table_is_public(db_from_config(datasette), table)
+            return [
+                {
+                    "href": datasette.urls.path(
+                        "/-/public-table/{}/{}".format(database, quote_plus(table))
+                    ),
+                    "label": "Make table {}".format(
+                        "public" if is_private else "private"
+                    ),
+                }
+            ]
+
+    return inner
+
+
+async def check_permissions(datasette, request, database):
+    if database == "_internal" or not await datasette.permission_allowed(
+        request.actor, "public-tables", resource=database, default=False
+    ):
+        raise Forbidden("Permission denied for changing table privacy")
+
+
+async def change_table_privacy(request, datasette):
+    table = unquote_plus(request.url_vars["table"])
+    database_name = request.url_vars["database"]
+    await check_permissions(datasette, request, database_name)
+    this_db = datasette.get_database(database_name)
+    if not await this_db.table_exists(table):
+        raise NotFound("Table not found")
+
+    permission_db = db_from_config(datasette)
+
+    if request.method == "POST":
+        form_data = await request.post_vars()
+        action = form_data.get("action")
+        if action == "make-public":
+            msg = "public"
+            await permission_db.execute_write(
+                "insert or ignore into _public_tables (table_name) values (?)", [table]
+            )
+        elif action == "make-private":
+            msg = "private"
+            await permission_db.execute_write(
+                "delete from _public_tables where table_name = ?", [table]
+            )
+        datasette.add_message(request, "Table '{}' is now {}".format(table, msg))
+        return Response.redirect(datasette.urls.table(database_name, table))
+
+    is_private = not await table_is_public(permission_db, table)
+
+    return Response.html(
+        await datasette.render_template(
+            "public_table_change_privacy.html",
+            {
+                "database_name": database_name,
+                "table": table,
+                "is_private": is_private,
+            },
+            request=request,
+        )
+    )
+
+
+@hookimpl
+def register_routes():
+    return [
+        (
+            r"^/-/public-table/(?P<database>[^/]+)/(?P<table>[^/]+)$",
+            change_table_privacy,
+        ),
+    ]
 
 
 def db_from_config(datasette):

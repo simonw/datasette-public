@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Change privacy for table {{ table }} in {{ database_name }}{% endblock %}
+
+{% block nav %}
+    <p class="crumbs">
+        <a href="{{ urls.instance() }}">home</a> /
+        <a href="{{ urls.database(database_name) }}">{{ database_name }}</a>
+    </p>
+    {{ super() }}
+{% endblock %}
+
+{% block content %}
+<h1>Edit table privacy: <a href="{{ base_url }}{{ database_name|quote_plus }}/{{ table|quote_plus }}">{{ database_name }}/{{ table }}</a></h1>
+
+<form action="{{ base_url }}-/public-table/{{ database_name|quote_plus }}/{{ table|quote_plus }}" method="post">
+<p>Table is currently <strong>{% if is_private %}private{% else %}public{% endif %}</strong></p>
+<p>
+    <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
+    <input type="hidden" name="action" value="{% if is_private %}make-public{% else %}make-private{% endif %}">
+    <input type="submit" value="{% if is_private %}Make public{% else %}Make private{% endif %}">
+</p>
+</form>
+
+{% endblock %}
