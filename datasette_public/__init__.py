@@ -107,7 +107,7 @@ async def change_table_privacy(request, datasette):
         await datasette.render_template(
             "public_table_change_privacy.html",
             {
-                "database_name": database_name,
+                "database": database_name,
                 "table": table,
                 "is_private": is_private,
             },
