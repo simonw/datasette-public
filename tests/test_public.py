@@ -80,6 +80,10 @@ async def test_where_is_denied(tmpdir):
     # Neither should this
     response = await ds.client.get("/data/t1?_where=1==1")
     assert ">1 extra where clause<" not in response.text
+    # BUT they should be allowed to use it IF they have database permission
+    ds._metadata_local["databases"] = {"data": {"allow": True}}
+    response2 = await ds.client.get("/data/t1?_where=1==1")
+    assert ">1 extra where clause<" in response2.text
 
 
 @pytest.mark.asyncio

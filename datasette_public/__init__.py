@@ -24,7 +24,9 @@ def permission_allowed(datasette, action, actor, resource):
         if actor and actor.get("id") == "root" and action == "public-tables":
             return True
         if action == "execute-sql" and not actor:
-            return False
+            return await datasette.permission_allowed(
+                actor, "view-database", resource=resource
+            )
         if action != "view-table":
             return None
         # Say 'yes' if this table is public

@@ -19,7 +19,7 @@ Any tables listed in the `_public_tables` table will be visible to the public, e
 
 The root user (and any user with the new `public-tables` permission) will get a new option in the table action menu allowing them to toggle a table between public and private.
 
-Installing this plugin also causes `allow-sql` permission checks to be denied to all logged-out users. This is to protect against people using the `?_where=` parameter on the table page to join against other private tables.
+Installing this plugin also causes `allow-sql` permission checks to fall back to checking if the user has access to the entire database. This is to avoid users with access to a single public table being able to access data from other tables using the `?_where=` query string parameter.
 
 ## Configuration
 
