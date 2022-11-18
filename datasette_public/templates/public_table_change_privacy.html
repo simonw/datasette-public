@@ -2,12 +2,8 @@
 
 {% block title %}Change privacy for table {{ table }} in {{ database }}{% endblock %}
 
-{% block nav %}
-    <p class="crumbs">
-        <a href="{{ urls.instance() }}">home</a> /
-        <a href="{{ urls.database(database) }}">{{ database }}</a>
-    </p>
-    {{ super() }}
+{% block crumbs %}
+{{ crumbs.nav(request=request, database=database, table=table) }}
 {% endblock %}
 
 {% block content %}
