@@ -55,14 +55,17 @@ def table_actions(datasette, actor, database, table):
         ):
             return []
         if database != "_internal":
+            noun = "table"
+            if table in await datasette.get_database(database).view_names():
+                noun = "view"
             is_private = not await table_is_public(db_from_config(datasette), table)
             return [
                 {
                     "href": datasette.urls.path(
                         "/-/public-table/{}/{}".format(database, quote_plus(table))
                     ),
-                    "label": "Make table {}".format(
-                        "public" if is_private else "private"
+                    "label": "Make {} {}".format(
+                        noun, "public" if is_private else "private"
                     ),
                 }
             ]
@@ -82,8 +85,14 @@ async def change_table_privacy(request, datasette):
     database_name = request.url_vars["database"]
     await check_permissions(datasette, request, database_name)
     this_db = datasette.get_database(database_name)
-    if not await this_db.table_exists(table):
-        raise NotFound("Table not found")
+    is_view = table in await this_db.view_names()
+    noun = "View" if is_view else "Table"
+    if (
+        not await this_db.table_exists(table)
+        # This can use db.view_exists() after that goes out in a stable release
+        and table not in await this_db.view_names()
+    ):
+        raise NotFound("{} not found".format(noun))
 
     permission_db = db_from_config(datasette)
 
@@ -100,7 +109,7 @@ async def change_table_privacy(request, datasette):
             await permission_db.execute_write(
                 "delete from _public_tables where table_name = ?", [table]
             )
-        datasette.add_message(request, "Table '{}' is now {}".format(table, msg))
+        datasette.add_message(request, "{} '{}' is now {}".format(noun, table, msg))
         return Response.redirect(datasette.urls.table(database_name, table))
 
     is_private = not await table_is_public(permission_db, table)
@@ -112,6 +121,7 @@ async def change_table_privacy(request, datasette):
                 "database": database_name,
                 "table": table,
                 "is_private": is_private,
+                "noun": noun.lower(),
             },
             request=request,
         )

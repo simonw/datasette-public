@@ -43,10 +43,16 @@ async def test_error_if_database_is_immutable(tmpdir):
         (True, True, True),
     ),
 )
-async def test_public_table(tmpdir, public_instance, public_table, should_allow):
+@pytest.mark.parametrize("is_view", (True, False))
+async def test_public_table(
+    tmpdir, public_instance, public_table, should_allow, is_view
+):
     db_path = str(tmpdir / "data.db")
     conn = sqlite3.connect(db_path)
-    conn.execute("create table t1 (id int)")
+    if is_view:
+        conn.execute("create view t1 as select 1")
+    else:
+        conn.execute("create table t1 (id int)")
     if public_table:
         with conn:
             conn.execute("create table _public_tables (table_name text primary key)")
@@ -88,17 +94,25 @@ async def test_where_is_denied(tmpdir):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("user_is_root", (True, False))
-async def test_ui_for_editing_table_privacy(tmpdir, user_is_root):
+@pytest.mark.parametrize("is_view", (True, False))
+async def test_ui_for_editing_table_privacy(tmpdir, user_is_root, is_view):
     db_path = str(tmpdir / "data.db")
     conn = sqlite3.connect(db_path)
-    conn.execute("create table t1 (id int)")
+    noun = "table"
+    if is_view:
+        noun = "view"
+        conn.execute("create view t1 as select 1")
+    else:
+        conn.execute("create table t1 (id int)")
     ds = Datasette([db_path], metadata={"allow": {"id": "*"}})
     await ds.invoke_startup()
     # Regular user can see table but not edit privacy
     cookies = {
         "ds_actor": ds.sign({"a": {"id": "root" if user_is_root else "user"}}, "actor")
     }
-    menu_fragment = '<li><a href="/-/public-table/data/t1">Make table public</a></li>'
+    menu_fragment = (
+        '<li><a href="/-/public-table/data/t1">Make {} public</a></li>'.format(noun)
+    )
     response = await ds.client.get("/data/t1", cookies=cookies)
     if user_is_root:
         assert menu_fragment in response.text
@@ -116,7 +130,7 @@ async def test_ui_for_editing_table_privacy(tmpdir, user_is_root):
         return
     # Test root user can toggle table privacy
     html = response2.text
-    assert "Table is currently <strong>private</strong>" in html
+    assert "{} is currently <strong>private</strong>".format(noun.title()) in html
     assert '<input type="hidden" name="action" value="make-public">' in html
     assert '<input type="submit" value="Make public">' in html
     assert _get_public_tables(db_path) == []
@@ -133,7 +147,7 @@ async def test_ui_for_editing_table_privacy(tmpdir, user_is_root):
     # And toggle it private again
     response4 = await ds.client.get("/-/public-table/data/t1", cookies=cookies)
     html2 = response4.text
-    assert "Table is currently <strong>public</strong>" in html2
+    assert "{} is currently <strong>public</strong>".format(noun.title()) in html2
     assert '<input type="hidden" name="action" value="make-private">' in html2
     assert '<input type="submit" value="Make private">' in html2
     response5 = await ds.client.post(

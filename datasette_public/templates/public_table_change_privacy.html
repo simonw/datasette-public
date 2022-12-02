@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}Change privacy for table {{ table }} in {{ database }}{% endblock %}
+{% block title %}Change privacy for {{ noun }} {{ table }} in {{ database }}{% endblock %}
 
 {% block crumbs %}
 {{ crumbs.nav(request=request, database=database, table=table) }}
 {% endblock %}
 
 {% block content %}
-<h1>Edit table privacy: <a href="{{ base_url }}{{ database|quote_plus }}/{{ table|quote_plus }}">{{ database }}/{{ table }}</a></h1>
+<h1>Edit {{ noun }} privacy: <a href="{{ base_url }}{{ database|quote_plus }}/{{ table|quote_plus }}">{{ database }}/{{ table }}</a></h1>
 
 <form action="{{ base_url }}-/public-table/{{ database|quote_plus }}/{{ table|quote_plus }}" method="post">
-<p>Table is currently <strong>{% if is_private %}private{% else %}public{% endif %}</strong></p>
+<p>{{ noun|title }} is currently <strong>{% if is_private %}private{% else %}public{% endif %}</strong></p>
 <p>
     <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
     <input type="hidden" name="action" value="{% if is_private %}make-public{% else %}make-private{% endif %}">
