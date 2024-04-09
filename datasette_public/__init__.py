@@ -67,6 +67,11 @@ def table_actions(datasette, actor, database, table):
                     "label": "Make {} {}".format(
                         noun, "public" if is_private else "private"
                     ),
+                    "description": (
+                        "Allow anyone to view this {}".format(noun)
+                        if is_private
+                        else "Only allow logged-in users to view this {}".format(noun)
+                    ),
                 }
             ]
 

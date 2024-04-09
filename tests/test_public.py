@@ -110,8 +110,8 @@ async def test_ui_for_editing_table_privacy(tmpdir, user_is_root, is_view):
     cookies = {
         "ds_actor": ds.sign({"a": {"id": "root" if user_is_root else "user"}}, "actor")
     }
-    menu_fragment = (
-        '<li><a href="/-/public-table/data/t1">Make {} public</a></li>'.format(noun)
+    menu_fragment = '<li><a href="/-/public-table/data/t1">Make {} public</a>'.format(
+        noun
     )
     response = await ds.client.get("/data/t1", cookies=cookies)
     if user_is_root:
