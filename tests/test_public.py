@@ -2,8 +2,18 @@ from datasette.app import Datasette
 from datasette.utils import StartupError
 import pytest
 import pytest_asyncio
+import re
 import sqlite3
 from collections import namedtuple
+
+
+def assert_action_item(html, href, label, present=True):
+    # Matches <a href="..." role="menuitem" ...>Label without depending on
+    # the exact attributes Datasette adds to action menu links
+    pattern = re.compile(
+        re.escape('href="{}"'.format(href)) + r"[^>]*>" + re.escape(label)
+    )
+    assert bool(pattern.search(html)) == present
 
 
 @pytest_asyncio.fixture
@@ -266,12 +276,13 @@ async def test_ui_for_editing_table_privacy(tmpdir, user_is_root, is_view):
     await ds.invoke_startup()
     # Regular user can see table but not edit privacy
     actor = {"id": "root" if user_is_root else "user"}
-    menu_fragment = '<li><a href="/-/public-table/data/t1">Make {} public'.format(noun)
     response = await ds.client.get("/data/t1", actor=actor)
-    if user_is_root:
-        assert menu_fragment in response.text
-    else:
-        assert menu_fragment not in response.text
+    assert_action_item(
+        response.text,
+        "/-/public-table/data/t1",
+        "Make {} public".format(noun),
+        present=user_is_root,
+    )
 
     # Check permissions on /-/public-table/data/t1 page
     response2 = await ds.client.get("/-/public-table/data/t1", actor=actor)
@@ -368,11 +379,12 @@ async def test_table_actions(tmpdir, database_is_private, should_show_table_acti
             )
     actor = {"id": "root"}
     response = await ds.client.get("/data/t1", actor=actor)
-    fragment = 'a href="/-/public-table/data/t1">Make table public'
-    if should_show_table_actions:
-        assert fragment in response.text
-    else:
-        assert fragment not in response.text
+    assert_action_item(
+        response.text,
+        "/-/public-table/data/t1",
+        "Make table public",
+        present=should_show_table_actions,
+    )
 
     # And fetch the control page
     response2 = await ds.client.get(
@@ -468,12 +480,12 @@ async def test_database_actions(
             )
 
     response = await ds.client.get("/data", actor={"id": "root"})
-    fragment = 'a href="/-/public-database/data">Change database visibility'
-
-    if should_show:
-        assert fragment in response.text
-    else:
-        assert fragment not in response.text
+    assert_action_item(
+        response.text,
+        "/-/public-database/data",
+        "Change database visibility",
+        present=should_show,
+    )
 
 
 @pytest.mark.asyncio
@@ -547,12 +559,12 @@ async def test_query_actions_ui(tmpdir, user_is_root, path, should_have_option):
     # Test query page shows action menu for root user only
     response = await ds.client.get(path, actor=actor)
     assert response.status_code == 200
-    menu_fragment = 'a href="/-/public-query/data/test_query">Make query public'
-
-    if user_is_root and should_have_option:
-        assert menu_fragment in response.text
-    else:
-        assert menu_fragment not in response.text
+    assert_action_item(
+        response.text,
+        "/-/public-query/data/test_query",
+        "Make query public",
+        present=user_is_root and should_have_option,
+    )
 
 
 @pytest.mark.asyncio

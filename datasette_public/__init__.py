@@ -1,6 +1,6 @@
 from datasette import hookimpl, Forbidden, Response, NotFound
 from datasette.permissions import Action, PermissionSQL
-from datasette.resources import DatabaseResource, QueryResource, TableResource
+from datasette.resources import DatabaseResource
 from datasette.utils import StartupError
 from urllib.parse import quote_plus, unquote_plus
 from typing import Tuple
